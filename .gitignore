@@ -1,0 +1,17 @@
+# third-party trees and tools (re-creatable, see sim/)
+ardupilot/
+tools/
+.venv/
+dabao-sdk/
+
+# build outputs and emulator state
+holodi/build/
+
+# never commit signing secrets
+holodi/keys/*private*
+
+# large media
+*.mp4
+*.wav
+integration_video/node_modules/
+.DS_Store
