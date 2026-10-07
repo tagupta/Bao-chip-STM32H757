@@ -32,6 +32,10 @@ from pathlib import Path
 from pymavlink import mavutil
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "holodi"))
+import boot_bundle  # noqa: E402
+import sign_apj  # noqa: E402
+
 AP = ROOT / "ardupilot"
 BUILD = ROOT / "holodi" / "build"
 KEY = ROOT / "holodi" / "keys" / "holodi_private_key.dat"
@@ -46,11 +50,9 @@ BOOTLOADER_END = 0x0802_0000  # sector 0 (128 KiB) holds the bootloader on H743
 
 
 def sign_and_tamper() -> None:
-    src = BUILD / "arducopter.apj"  # from sim/build_secure.sh
-    SIGNED.write_text(src.read_text())
-    subprocess.run([str(PY), str(AP / "Tools/scripts/signing/make_secure_fw.py"), str(SIGNED), str(KEY)], check=True)
-
-    d = json.loads(SIGNED.read_text())
+    src = json.loads((BUILD / "arducopter.apj").read_text())  # from sim/build_secure.sh
+    d = sign_apj.sign(src, boot_bundle.load_private_key(KEY))
+    SIGNED.write_text(json.dumps(d, indent=4))
     img = bytearray(zlib.decompress(base64.b64decode(d["image"])))
     at = img.find(b"ArduCopter V")
     if at < 0:
