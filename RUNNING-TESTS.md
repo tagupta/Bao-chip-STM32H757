@@ -19,11 +19,11 @@ The procedures those tests follow are documented in [`baochip-secure-boot.md`](.
 
 This GitHub repo is **documentation + simulation only**. The bench flow depends on two private repositories hosted under the `Sureshot-Labs` GitHub org, plus a USB-connected Dabao and Cube Orange+.
 
-| Repository | Remote | Branch | Pinned commit |
-|---|---|---|---|
-| **This repo** (`bao_chip`) | `tagupta/Bao-chip-STM32H757` | `main` | `17d8542` |
-| **fc-holodai** | `Sureshot-Labs/fc-holodai` | `main` | **`efe1d7f18787264551d7b77f3886b0d0e3beb078`** |
-| **xous-core-internal** | `Sureshot-Labs/xous-core-internal` | `holodi-lane` | **`61e3e80ba0b9e1bcc918f7769ef8afb2a733fef2`** |
+| Repository                 | Remote                             | Branch        | Pinned commit                                  |
+| -------------------------- | ---------------------------------- | ------------- | ---------------------------------------------- |
+| **This repo** (`bao_chip`) | `tagupta/Bao-chip-STM32H757`       | `master`      | `17d8542`                                      |
+| **fc-holodai**             | `Sureshot-Labs/fc-holodai`         | `main`        | **`efe1d7f18787264551d7b77f3886b0d0e3beb078`** |
+| **xous-core-internal**     | `Sureshot-Labs/xous-core-internal` | `holodi-lane` | **`61e3e80ba0b9e1bcc918f7769ef8afb2a733fef2`** |
 
 - **Access:** both `Sureshot-Labs` repos are private. If `git clone` returns "repository not found", your GitHub account does not have access yet — ask for it before continuing.
 - **Why pinned commits and not just branches:** `fc-holodai/main` moves forward with work that has not yet been re-tested on hardware. The commit above is the one this bench was validated against. Bump the pin only after you re-run the tests in Section 5 on a newer commit.
@@ -89,7 +89,7 @@ Each phase below links to the authoritative procedure. The names (Phase 0, A, B,
 
 ### Phase 0 — Laptop toolchain
 
-Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), *Phase 0*.
+Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), _Phase 0_.
 
 1. Install **Nix** with flakes enabled; on Apple Silicon also install **Rosetta** (ArduPilot's GCC 10 is x86_64).
 2. Enter the pinned shell:
@@ -107,7 +107,7 @@ Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), *Phase 0*.
 
 ### Phase A–C — Baochip firmware and chip signing key
 
-Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), *Phases A, B, C*.
+Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), _Phases A, B, C_.
 
 1. Build the Dabao firmware from `xous-core-internal` (pinned to `61e3e80`):
    ```bash
@@ -125,7 +125,7 @@ Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), *Phases A, B, C*.
 
 ### Phase D–G — Secure bootloader onto the Cube
 
-Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), *Phases D, E, F, G*.
+Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), _Phases D, E, F, G_.
 
 1. `just secure-bl CubeOrangePlus holodi-chip` — build the Cube bootloader that trusts only the Baochip chip key.
 2. `python3 tools/fwcheck.py keys out/CubeOrangePlus-secure-bl-holodi-chip.bin --expect keys/holodi-chip_public_key.dat` — confirm it trusts the right key.
@@ -134,7 +134,7 @@ Source: [`baochip-secure-boot.md`](./baochip-secure-boot.md), *Phases D, E, F, G
 
 ### Part 1–7 of command auth
 
-Source: [`baochip-command-auth.md`](./baochip-command-auth.md), *Parts 1 through 7*.
+Source: [`baochip-command-auth.md`](./baochip-command-auth.md), _Parts 1 through 7_.
 
 After Phase H of secure boot passes:
 
@@ -167,13 +167,13 @@ just ports            # identify Dabao and Cube USB device paths
 
 The script uploads five images from `out/` and, after each one, reads the Cube's USB device name to decide pass/fail:
 
-| # | Image | Expected USB name | What it proves |
-|---|---|---|---|
-| 1 | `CubeOrangePlus-copter-signed-holodi-chip.apj` | `CubeOrange+` | Legitimate Baochip-signed firmware boots. |
-| 2 | Firmware signed with `secondary` | `CubeOrange+-Secure-BL-v10` | Wrong-key image is refused. |
-| 3 | Unsigned firmware | `CubeOrange+-Secure-BL-v10` | Unsigned image is refused. |
-| 4 | Baochip-signed firmware with one byte tampered | `CubeOrange+-Secure-BL-v10` | Tampering is detected. |
-| 5 | Baochip-signed firmware again | `CubeOrange+` | Bench recovers to a known-good state. |
+| #   | Image                                          | Expected USB name           | What it proves                            |
+| --- | ---------------------------------------------- | --------------------------- | ----------------------------------------- |
+| 1   | `CubeOrangePlus-copter-signed-holodi-chip.apj` | `CubeOrange+`               | Legitimate Baochip-signed firmware boots. |
+| 2   | Firmware signed with `secondary`               | `CubeOrange+-Secure-BL-v10` | Wrong-key image is refused.               |
+| 3   | Unsigned firmware                              | `CubeOrange+-Secure-BL-v10` | Unsigned image is refused.                |
+| 4   | Baochip-signed firmware with one byte tampered | `CubeOrange+-Secure-BL-v10` | Tampering is detected.                    |
+| 5   | Baochip-signed firmware again                  | `CubeOrange+`               | Bench recovers to a known-good state.     |
 
 **Expected final line:** `5 passed, 0 failed`.
 
@@ -187,13 +187,13 @@ The script uploads five images from `out/` and, after each one, reads the Cube's
 
 The script walks five checks and reports pass/fail per check using counters from both ends (Cube `@SYS/holodi.txt` and Dabao `blob status`):
 
-| # | Check | Pass condition |
-|---|---|---|
-| 1 | Commands through Holodi are signed and obeyed | Mode change `ACCEPTED`; Cube `frames_in` goes up; no `rejected` counter moves. |
-| 2 | Direct Cube USB commands are ignored (needs `HOLODI_REQUIRE=1`) | Mode does **not** change; `require 1 rx_locked_channels ≥ 1`. Skipped if `HOLODI_REQUIRE=0`. |
-| 3 | Cube telemetry is tagged and Holodi verifies it | Cube `frames_out` goes up; Holodi `from_fc_frames > 0`. |
-| 4 | Both ends name the same pairing | Cube `uid` == Cube `paired` == Holodi `paired`. |
-| 5 | *(optional, `--forged-telemetry`)* Untagged telemetry is not forwarded | Needs `HOLODI_REQUIRE=0`. Script flips `SERIAL1_PROTOCOL` to `2`, confirms Holodi forwards nothing, then flips it back. |
+| #   | Check                                                                  | Pass condition                                                                                                          |
+| --- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1   | Commands through Holodi are signed and obeyed                          | Mode change `ACCEPTED`; Cube `frames_in` goes up; no `rejected` counter moves.                                          |
+| 2   | Direct Cube USB commands are ignored (needs `HOLODI_REQUIRE=1`)        | Mode does **not** change; `require 1 rx_locked_channels ≥ 1`. Skipped if `HOLODI_REQUIRE=0`.                            |
+| 3   | Cube telemetry is tagged and Holodi verifies it                        | Cube `frames_out` goes up; Holodi `from_fc_frames > 0`.                                                                 |
+| 4   | Both ends name the same pairing                                        | Cube `uid` == Cube `paired` == Holodi `paired`.                                                                         |
+| 5   | _(optional, `--forged-telemetry`)_ Untagged telemetry is not forwarded | Needs `HOLODI_REQUIRE=0`. Script flips `SERIAL1_PROTOCOL` to `2`, confirms Holodi forwards nothing, then flips it back. |
 
 Negative-telemetry run (optional):
 
@@ -209,15 +209,15 @@ Only run this with `HOLODI_REQUIRE=0`. With the lock on, the script cannot put `
 
 ## 6. Troubleshooting quick index
 
-| Symptom | Where to look |
-|---|---|
-| `nix: command not found` right after installing Nix | [`baochip-secure-boot.md`](./baochip-secure-boot.md), *Phase 0 → Nix* |
-| `just ports` doesn't show one of the boards | Replug that board; a name can change after each replug. |
-| Secure-boot test 1 stays in `CubeOrange+-Secure-BL-v10` | Re-run `just verify CubeOrangePlus holodi-chip` (Phase F), re-sign (Phase E), re-upload only image 1. |
-| Command-auth test 1 shows `rejected bad-signature` | Cube holds a different Holodi key than the Dabao currently signing. Redo pairing (Part 4). |
-| Command-auth test 2 says "SKIPPED (HOLODI_REQUIRE 0)" | By design. Set `HOLODI_REQUIRE 1` through Holodi first (Part 7), then re-run. |
-| `no answer within 10 s` on `just holodi-*` | Dabao USB is in data mode. Replug the Dabao and re-run within 10 seconds, or free the port with `+++` then quit the terminal. |
-| Script asks for a Dabao replug and nothing happens | Any MAVProxy or terminal holding the Dabao port blocks it. Close it, replug, and continue. |
+| Symptom                                                 | Where to look                                                                                                                 |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `nix: command not found` right after installing Nix     | [`baochip-secure-boot.md`](./baochip-secure-boot.md), _Phase 0 → Nix_                                                         |
+| `just ports` doesn't show one of the boards             | Replug that board; a name can change after each replug.                                                                       |
+| Secure-boot test 1 stays in `CubeOrange+-Secure-BL-v10` | Re-run `just verify CubeOrangePlus holodi-chip` (Phase F), re-sign (Phase E), re-upload only image 1.                         |
+| Command-auth test 1 shows `rejected bad-signature`      | Cube holds a different Holodi key than the Dabao currently signing. Redo pairing (Part 4).                                    |
+| Command-auth test 2 says "SKIPPED (HOLODI_REQUIRE 0)"   | By design. Set `HOLODI_REQUIRE 1` through Holodi first (Part 7), then re-run.                                                 |
+| `no answer within 10 s` on `just holodi-*`              | Dabao USB is in data mode. Replug the Dabao and re-run within 10 seconds, or free the port with `+++` then quit the terminal. |
+| Script asks for a Dabao replug and nothing happens      | Any MAVProxy or terminal holding the Dabao port blocks it. Close it, replug, and continue.                                    |
 
 More detailed troubleshooting lives inline in [`baochip-secure-boot.md`](./baochip-secure-boot.md) and [`baochip-command-auth.md`](./baochip-command-auth.md) under each phase/part — every block there has a **"If it fails"** note.
 
