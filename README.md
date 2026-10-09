@@ -14,6 +14,10 @@ the H743 bootloader, installs or accepts only an authentic bootloader, and then
 releases the H743. The trusted H743 bootloader then verifies the ArduCopter
 firmware before running it.
 
+The repo also covers **command authentication**: once the Cube boots trusted
+firmware, it obeys only flight commands signed by Holodi (the Baochip). See
+section 8 below, `baochip-command-auth.md`, and `RUNNING-TESTS.md`.
+
 ## What We Have Done Recently
 
 ### 1. Defined the Secure Boot Flow
@@ -270,6 +274,94 @@ attacker replacing the embedded public key cannot be fully prevented. In
 production, this must be prevented by factory provisioning, lockdown, and memory
 protection so the trusted public key cannot be replaced.
 
+### 8. Added Baochip-Signed Command Authentication on the Cube Orange+
+
+Secure boot proves the Cube runs only trusted firmware. The next step was to
+prove the Cube also obeys only **trusted commands**. After this work, a Cube
+Orange+ running Holodi-enabled ArduCopter accepts a flight command only if
+Holodi (the Baochip on the Dabao) signed it.
+
+The data path is:
+
+```text
+Laptop (MAVProxy) --USB--> Dabao/Holodi (signs) --UART2/TELEM1--> Cube (verifies)
+Cube (tags telemetry) --TELEM1--> Dabao/Holodi (verifies) --USB--> Laptop
+```
+
+What is authenticated:
+
+- **Commands (laptop -> Cube):** Holodi signs each MAVLink frame; the Cube checks
+  the signature and drops anything that does not verify.
+- **Telemetry (Cube -> laptop):** the Cube tags its frames and Holodi verifies
+  them before forwarding. Plain, untagged MAVLink on the TELEM1 wire is not
+  forwarded.
+- **Pairing:** the Cube and Holodi are paired once, and both ends must name the
+  same UID.
+- **Direct USB lock:** with `HOLODI_REQUIRE=1`, commands sent over the Cube's own
+  USB are ignored; only commands through Holodi work.
+
+Setup summary (full steps in `baochip-command-auth.md`):
+
+1. Give Holodi a command seed and configure its lanes
+   (`blob seed`, `blob mode duplex`, `blob lane sign usb uart2`,
+   `blob lane verify uart2 usb`, `blob uart2baud 921600`).
+2. Build the Holodi-enabled Cube firmware (`just build-to-sign CubeOrangePlus 1`)
+   and have the Dabao sign it (`just holodi-sign ...`).
+3. Upload it and set `SERIAL1_PROTOCOL 51`, `SERIAL1_BAUD 921`,
+   `BRD_SER1_RTSCTS 0` on the Cube.
+4. Pair the Cube and Holodi (`HOLODI_PAIR 1` on the Cube, `blob pair` on Holodi).
+5. Send commands through Holodi with `just mav <dabao>`.
+6. Optionally lock the Cube's other ports with `HOLODI_REQUIRE 1`.
+
+No wiring changes are needed beyond the existing TELEM1 link
+(Dabao PB13/PB14/GND to Cube TELEM1 TX/RX/GND), and the Cube bootloader is not
+touched.
+
+Docs for this work:
+
+- `baochip-command-auth.md`: step-by-step bench guide (Parts 1 to 8, including
+  the wrong-key demo, the lock, and recovery).
+- `baochip-secure-boot.md`: prerequisite guide; the Cube must already trust the
+  Baochip key (Phase H passed).
+- `RUNNING-TESTS.md`: how to reproduce the bench and run the automated tests,
+  with pinned repository commits.
+- `fc-holodai/baochip-command-auth-test-summary.md` and
+  `fc-holodai/baochip-command-auth-code-walkthrough.md`: what each test proves
+  and how the code works (local only, see the note below).
+
+#### Automated test
+
+`test_baochip_command_auth.sh` (a thin launcher for
+`test_baochip_command_auth.py`) checks both ends using the Cube's
+`@SYS/holodi.txt` counters and Holodi's `blob status` counters:
+
+| # | Check | Pass condition |
+|---|-------|----------------|
+| 1 | Commands through Holodi are signed and obeyed | Mode change `ACCEPTED`; Cube `frames_in` rises; no `rejected` counter moves. |
+| 2 | Direct Cube USB commands are ignored | Needs `HOLODI_REQUIRE=1`; mode does not change; `rx_locked_channels >= 1`. Skipped otherwise. |
+| 3 | Cube telemetry is tagged and verified by Holodi | Cube `frames_out` rises; Holodi `from_fc_frames > 0`. |
+| 4 | Both ends name the same pairing | Cube `uid`, Cube `paired`, and Holodi `paired` match. |
+| 5 | Untagged telemetry is not forwarded (optional) | `--forged-telemetry`, needs `HOLODI_REQUIRE=0`; Holodi forwards nothing. |
+
+Expected result: `4 passed, 0 failed, 0 skipped` (5 passed with
+`--forged-telemetry`).
+
+#### Note on private repositories
+
+The Cube/Holodi firmware, `just` recipes, and test scripts live in the private
+`Sureshot-Labs/fc-holodai` and `Sureshot-Labs/xous-core-internal` repositories.
+They are intentionally **not** part of this repo (they are listed in
+`.gitignore`). This repo holds the documentation and simulation; you need access
+to those two repositories to reproduce the hardware bench. Signing seeds and
+`keys/` must never be committed.
+
+#### Known limits
+
+- Holodi signs whatever arrives on its USB (a laptop here, a radio on a drone).
+- The command seed passes through the laptop in the bench flow.
+- Replay protection after a Cube reboot is not covered in this bench guide.
+- Telemetry authenticity is checked by the test script, not by the manual guide.
+
 ## Common Commands
 
 Run these from the repo root.
@@ -330,6 +422,24 @@ Monitor the Cube from the Mac (confirms wiring, firmware, and Baochip heartbeat)
 .venv/bin/python firmware/baochip_mavlink_test/cube_monitor.py --port /dev/cu.usbmodem<CUBE>
 ```
 
+Run the Baochip-signed command authentication test (from `fc-holodai`, inside
+`nix develop`, with both the Dabao and the Cube plugged in):
+
+```bash
+cd fc-holodai
+./test_baochip_command_auth.sh /dev/cu.usbmodem<DABAO> /dev/cu.usbmodem<CUBE>
+
+# optional negative telemetry test (only with HOLODI_REQUIRE=0)
+./test_baochip_command_auth.sh /dev/cu.usbmodem<DABAO> /dev/cu.usbmodem<CUBE> --forged-telemetry
+```
+
+Open a Holodi-signed MAVProxy session (wait 15 seconds after plugging in the Dabao):
+
+```bash
+cd fc-holodai
+just mav <dabao>
+```
+
 ## Current Status
 
 The repo now has:
@@ -341,7 +451,11 @@ The repo now has:
 - hardware deployment and Cube Orange+ wiring notes;
 - tests for valid and invalid boot scenarios;
 - a verified physical UART link between Baochip and Cube Orange+;
-- a MAVLink relay test proving the Baochip can command the Cube over TELEM1.
+- a MAVLink relay test proving the Baochip can command the Cube over TELEM1;
+- a Baochip-signed command path: the Cube obeys only commands signed by Holodi,
+  verified Cube telemetry, pairing, and an optional lock on the Cube's own USB;
+- bench guides and an automated test for secure boot and command authentication
+  (`baochip-secure-boot.md`, `baochip-command-auth.md`, `RUNNING-TESTS.md`).
 
 The main remaining production work is to replace the bench developer-signing
 setup with production Baochip signing, factory lockdown, and final hardware
