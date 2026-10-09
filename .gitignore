@@ -18,3 +18,7 @@ holodi/keys/*private*
 *.wav
 integration_video/node_modules/
 .DS_Store
+# Private / third-party clones (clone separately; see RUNNING-TESTS.md)
+fc-holodai/
+xous-core-internal/
+.vscode/

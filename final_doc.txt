@@ -15,3 +15,12 @@ Q1 What stops an attacker from replacing the public key with another one?
 A1: In the dev mode for FC, this can’t be prevented. Assumption is that you can block these memory locations at the setup phase at the factory-level so the underlying key can’t be replaced.
 
 The private key would then sit in the HoloDi.
+
+####################
+
+Only authenticated commands are obeyed by FC:
+
+1.⁠ ⁠Set up an asymmetric key on baochip. 
+2.⁠ ⁠⁠The public is loaded in the firmware.
+3.⁠ ⁠⁠Any command from the ground (ie laptop) needs to be signed by HoloDi’s private key from step 1 
+4.⁠ ⁠⁠FC’ firmware  checks if the signature on the command is valid and only then it processes the command.
